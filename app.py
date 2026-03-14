@@ -259,7 +259,7 @@ with col_up:
         type=["xlsx"]
     )
 with col_name:
-    proprietaire = st.text_input("Nom du copropriétaire", value="GUINOT Jean-Charles")
+    proprietaire = st.text_input("Nom du copropriétaire", value="Samuel de Champlain")
 
 if not uploaded:
     st.info("👆 Importez votre fichier Excel pour démarrer l'analyse.")
@@ -277,17 +277,42 @@ if not uploaded:
 
 # ── Lecture et normalisation ──
 try:
+    import unicodedata
+
+    def _norm(s):
+        """Minuscules sans accents pour comparaison souple."""
+        s = str(s).lower().strip()
+        return "".join(c for c in unicodedata.normalize("NFD", s)
+                       if unicodedata.category(c) != "Mn")
+
     df_raw = pd.read_excel(uploaded, header=0)
     df_raw.columns = [str(c).strip() for c in df_raw.columns]
-    rename = {}
-    for c in df_raw.columns:
-        cl = c.lower()
-        if "date" in cl:                                rename[c] = "date"
-        elif "lib" in cl:                               rename[c] = "libelle"
-        elif "éb" in cl or "deb" in cl or cl == "db":  rename[c] = "debit"
-        elif "éd" in cl or "cr" in cl or cl == "cd":   rename[c] = "credit"
-    df_raw = df_raw.rename(columns=rename)[["date", "libelle", "debit", "credit"]]
-    df_raw = df_raw.dropna(subset=["date"])
+    cols = list(df_raw.columns)
+
+    # Détection souple par mots-clés (insensible à la casse et aux accents)
+    mapping = {}
+    for c in cols:
+        n = _norm(c)
+        if "date" in n and "date" not in mapping:
+            mapping["date"] = c
+        elif any(k in n for k in ["lib", "label", "desc", "intit", "ecriture", "operation"])                 and "libelle" not in mapping:
+            mapping["libelle"] = c
+        elif any(k in n for k in ["deb", "debit", "charge", "sortie"])                 and "debit" not in mapping:
+            mapping["debit"] = c
+        elif any(k in n for k in ["cred", "credit", "encaiss", "entree"])                 and "credit" not in mapping:
+            mapping["credit"] = c
+
+    # Fallback positionnel : si détection incomplète, on prend les colonnes dans l'ordre
+    # (col 1=date, 2=libelle, 3=debit, 4=credit) quelle que soit leur nom
+    if len(mapping) < 4:
+        for key, c in zip(["date", "libelle", "debit", "credit"], cols):
+            if key not in mapping:
+                mapping[key] = c
+
+    # Renommage vers les noms internes
+    df_raw = df_raw.rename(columns={v: k for k, v in mapping.items()})
+    df_raw = df_raw[["date", "libelle", "debit", "credit"]].dropna(subset=["date"])
+
 except Exception as e:
     st.error(f"Impossible de lire le fichier : {e}")
     st.stop()
