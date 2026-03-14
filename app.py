@@ -68,7 +68,23 @@ def traiter_releve(df_raw: pd.DataFrame):
     du logiciel comptable : cumsum(débit - crédit) sur TOUTES les lignes.
     """
     df = df_raw.copy()
-    df["date"]   = pd.to_datetime(df["date"])
+    # Conversion des dates — robuste face aux formats variés (timestamp Excel,
+    # chaîne JJ/MM/AAAA, MM/DD/YYYY, AAAA-MM-JJ, etc.)
+    def parse_dates_robuste(serie):
+        # 1. Essai direct avec inférence (timestamp Excel natif inclus)
+        result = pd.to_datetime(serie, dayfirst=True, errors="coerce")
+        # 2. Pour les valeurs non parsées, essai format français JJ/MM/AAAA
+        mask = result.isna()
+        if mask.any():
+            result[mask] = pd.to_datetime(serie[mask], format="%d/%m/%Y", errors="coerce")
+        # 3. Essai format AAAA-MM-JJ
+        mask = result.isna()
+        if mask.any():
+            result[mask] = pd.to_datetime(serie[mask], format="%Y-%m-%d", errors="coerce")
+        return result
+
+    df["date"] = parse_dates_robuste(df["date"])
+    df = df.dropna(subset=["date"])
     df["debit"]  = pd.to_numeric(df["debit"],  errors="coerce").fillna(0).round(2)
     df["credit"] = pd.to_numeric(df["credit"], errors="coerce").fillna(0).round(2)
     df["nature"] = df["libelle"].apply(nature)
@@ -259,7 +275,7 @@ with col_up:
         type=["xlsx"]
     )
 with col_name:
-    proprietaire = st.text_input("Nom du copropriétaire", value="Samuel de Champlain")
+    proprietaire = st.text_input("Nom du copropriétaire", value="GUINOT Jean-Charles")
 
 if not uploaded:
     st.info("👆 Importez votre fichier Excel pour démarrer l'analyse.")
