@@ -161,13 +161,16 @@ def export_xlsx(df: pd.DataFrame, dettes: list, proprietaire: str) -> io.BytesIO
         s.number_format = '#,##0.00'
         sc = ws.cell(row=i, column=7, value=row["solde_courant"])
         sc.number_format = '#,##0.00'
-        sc.font = Font(name="Calibri", size=10, bold=True,
-                       color="C00000" if row["solde_courant"] > 0 else "006400")
+        solde_color = "C00000" if row["solde_courant"] > 0 else "006400"
         for col in range(1, 8):
-            ws.cell(row=i, column=col).font   = font_norm if col != 7 else sc.font
-            ws.cell(row=i, column=col).border = brd
+            cell = ws.cell(row=i, column=col)
+            if col == 7:
+                cell.font = Font(name="Calibri", size=10, bold=True, color=solde_color)
+            else:
+                cell.font = Font(name="Calibri", size=10)
+            cell.border = brd
             if i % 2 == 0:
-                ws.cell(row=i, column=col).fill = fill_pair
+                cell.fill = fill_pair
 
     for col, w in enumerate([14, 50, 13, 13, 60, 13, 13], 1):
         ws.column_dimensions[get_column_letter(col)].width = w
