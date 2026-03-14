@@ -46,7 +46,9 @@ def impute_art1342(debts_pool, payment_amount, payment_date):
     non_echues = [d for d in open_debts if d["date"] >  payment_date]
 
     def sort_key(d):
-        return (PRIORITY.get(d["categorie"], 99), d["date"], d["idx"])
+        # Ancienneté prime toujours : la dette la plus ancienne s'éteint en premier.
+        # En cas d'égalité de date, on respecte l'ordre d'apparition dans le relevé.
+        return (d["date"], d["idx"])
 
     echues.sort(key=sort_key)
     non_echues.sort(key=sort_key)
